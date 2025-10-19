@@ -1,0 +1,129 @@
+<%- include('parts/header.ejs') %>
+<main class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <h1 class="text-white mb-4 fw-bold text-center">
+                <i class="fas fa-trophy me-2"></i> Мои Игры
+            </h1>
+
+            <div class="card shadow-lg mb-4 bg-dark text-white border-primary">
+                <div class="card-body">
+                    <h5 class="card-title text-warning"><i class="fas fa-plus-circle me-2"></i> Добавить новую игру</h5>
+                    
+                    <form action="/add-game" method="POST" class="row g-3">
+                        <div class="col-md-7">
+                            <input type="text" class="form-control" name="gameName" placeholder="Название игры" required>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <select class="form-select" name="gameStatus" required>
+                                <option value="" disabled selected>Статус...</option>
+                                <option value="completed">✅ Прошел</option>
+                                <option value="playing">🎮 Играю</option>
+                                <option value="planned">🗓️ Планирую</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2 d-grid">
+                            <button type="submit" class="btn btn-primary">Добавить</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card shadow-lg bg-light">
+                <div class="card-body p-0">
+                    <ul class="nav nav-tabs nav-fill" id="gameTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="completed-tab" data-bs-toggle="tab" data-bs-target="#completed" type="button" role="tab">✅ Пройденные</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="playing-tab" data-bs-toggle="tab" data-bs-target="#playing" type="button" role="tab">🎮 Играю</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="planned-tab" data-bs-toggle="tab" data-bs-target="#planned" type="button" role="tab">🗓️ Планирую</button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content p-3">
+                        
+                        <div class="tab-pane fade show active" id="completed" role="tabpanel">
+                            <ul class="list-group">
+                                <% games.forEach(game => { %>
+                                    <% if (game.status === 'completed') { %>
+                                        <li class="list-group-item list-group-item-success d-flex justify-content-between align-items-center">
+                                            <%= game.game_name %>
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge bg-success rounded-pill me-2">Прошел</span>
+                                                <form action="/delete-game" method="POST">
+                                                    <input type="hidden" name="gameId" value="<%= game.id %>">
+                                                    <button type="submit" class="btn btn-sm btn-danger p-1" title="Удалить">
+                                                        <i class="fas fa-trash-alt"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </li>
+                                    <% } %>
+                                <% }) %>
+                            </ul>
+                            <% if (!games.some(g => g.status === 'completed')) { %>
+                                <p class="text-muted text-center pt-3">Пока нет пройденных игр.</p>
+                            <% } %>
+                        </div>
+
+                        <div class="tab-pane fade" id="playing" role="tabpanel">
+                            <ul class="list-group">
+                                <% games.forEach(game => { %>
+                                    <% if (game.status === 'playing') { %>
+                                        <li class="list-group-item list-group-item-info d-flex justify-content-between align-items-center">
+                                            <%= game.game_name %>
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge bg-info rounded-pill me-2">Играю</span>
+                                                <form action="/delete-game" method="POST">
+                                                    <input type="hidden" name="gameId" value="<%= game.id %>">
+                                                    <button type="submit" class="btn btn-sm btn-danger p-1" title="Удалить">
+                                                        <i class="fas fa-trash-alt"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </li>
+                                    <% } %>
+                                <% }) %>
+                            </ul>
+                            <% if (!games.some(g => g.status === 'playing')) { %>
+                                <p class="text-muted text-center pt-3">Вы ничего не играете прямо сейчас.</p>
+                            <% } %>
+                        </div>
+
+                        <div class="tab-pane fade" id="planned" role="tabpanel">
+                            <ul class="list-group">
+                                <% games.forEach(game => { %>
+                                    <% if (game.status === 'planned') { %>
+                                        <li class="list-group-item list-group-item-warning d-flex justify-content-between align-items-center">
+                                            <%= game.game_name %>
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge bg-warning text-dark rounded-pill me-2">Планирую</span>
+                                                <form action="/delete-game" method="POST">
+                                                    <input type="hidden" name="gameId" value="<%= game.id %>">
+                                                    <button type="submit" class="btn btn-sm btn-danger p-1" title="Удалить">
+                                                        <i class="fas fa-trash-alt"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </li>
+                                    <% } %>
+                                <% }) %>
+                            </ul>
+                            <% if (!games.some(g => g.status === 'planned')) { %>
+                                <p class="text-muted text-center pt-3">Пока нет запланированных игр.</p>
+                            <% } %>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</main>
+<%- include('parts/footer.ejs') %>
