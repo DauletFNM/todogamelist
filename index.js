@@ -198,7 +198,7 @@ passport.use("google", new GoogleStrategy(
   {
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: 'http://localhost:3000/auth/google/gamenotes',
+    callbackURL: 'https://todogamelist.onrender.com/auth/google/gamenotes',
     userProfileURL: 'https://www.googleapis.com/oauth2/v3/userinfo'
   }, 
   async (accessToken, refreshToken, profile, cb)=>{
@@ -233,4 +233,5 @@ passport.deserializeUser(async (id, cb) => {
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
+
 
