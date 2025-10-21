@@ -9,7 +9,7 @@ import dotenv from "dotenv";
 
 
 const app = express();
-// ИЗМЕНЕНИЕ 1: Используем порт, предоставленный хостингом, или 3000
+
 const port = process.env.PORT || 3000; 
 const saltRounds = 10
 dotenv.config({path: ".env"});
@@ -17,7 +17,7 @@ dotenv.config({path: ".env"});
 app.set("view engine", "ejs");
 app.set("views", "./views");
 
-// ИЗМЕНЕНИЕ 2: Используем connectionString и SSL для облачной БД
+
 const db = new PG.Client({
   connectionString: process.env.DATABASE_URL, 
   ssl: {
