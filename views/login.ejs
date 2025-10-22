@@ -1,68 +1,49 @@
 <%- include('parts/header.ejs') %>
-<body>
-  <div class="container py-5">
-    <div class="row justify-content-center">
-      <div class="col-12 col-sm-8 col-md-6 col-lg-4">
-        
-        <div class="card mt-5 bg-transparent border-0 shadow-none">
-          
-          <div class="card-body text-white p-5">
-            
-            <h3 class="card-title mb-4 text-center fw-bold text-white">
-                <i class="fas fa-user-lock me-2"></i> Вход в систему
-            </h3>
-            
-            <form method="POST" action="/login">
-              
-              <div class="mb-3 input-group input-group-lg">
-                <span class="input-group-text"><i class="fas fa-envelope"></i></span>
-                <input 
-                  type="email" 
-                  class="form-control" 
-                  id="email" 
-                  name="username" 
-                  placeholder="name@example.com" 
-                  required
-                >
-              </div>
-              
-              <div class="mb-4 input-group input-group-lg">
-                <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                <input 
-                  type="password" 
-                  class="form-control" 
-                  id="password" 
-                  name="password" 
-                  placeholder="Пароль" 
-                  required
-                >
-              </div>
-       
-              <div class="d-grid gap-2">
-                <button type="submit" class="btn btn-warning btn-lg fw-bold">
-                  Войти 🚀
-                </button>
-              </div>
-              
-            </form>
-            
-            <div class="mt-4 text-center">
-              <a href="#" class="text-decoration-none text-white">Забыли пароль?</a>
-              <div class="mt-2">
-                 <small>Нет аккаунта? <a href="/register" class="text-decoration-none text-white">Зарегистрироваться</a></small>
-            <a class="btn btn-warning btn-lg fw-bold" href="/auth/google" role="button">
-              <i class="fab fa-google"></i>
-              Вход через Google
-            </a>
-              </div>
-            </div>
-            
-          </div>
-        </div>
-      </div>
+
+<main class="container d-flex justify-content-center align-items-center vh-100">
+  <div class="card login-card shadow-lg p-4">
+    <div class="text-center mb-4">
+      <i class="fas fa-gamepad fa-3x text-primary mb-3"></i>
+      <h2 class="fw-bold">Вход в GameNotes</h2>
+      <p class="text-muted">Продолжи следить за своими играми</p>
     </div>
+
+    <!-- Форма логина -->
+    <form action="/login" method="POST">
+      <div class="mb-3">
+        <label for="username" class="form-label fw-semibold">Email</label>
+        <input type="email" class="form-control" id="username" name="username" placeholder="Введите email" required>
+      </div>
+
+      <div class="mb-3">
+        <label for="password" class="form-label fw-semibold">Пароль</label>
+        <input type="password" class="form-control" id="password" name="password" placeholder="Введите пароль" required>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
+        <i class="fas fa-sign-in-alt me-2"></i> Войти
+      </button>
+    </form>
+
+    <!-- Разделитель -->
+    <div class="divider my-4">
+      <hr><span>или</span><hr>
+    </div>
+
+    <!-- Кнопка Google входа -->
+    <div class="text-center">
+      <a href="/auth/google" class="btn btn-google w-100 py-2">
+        <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google logo">
+        <span>Войти через Google</span>
+      </a>
+    </div>
+
+    <!-- Регистрация -->
+    <p class="text-center mt-4 mb-0 text-muted">
+      Нет аккаунта?
+      <a href="/register" class="text-decoration-none fw-semibold">Создать</a>
+    </p>
   </div>
+</main>
 
-  <%- include('parts/footer.ejs') %>
-
-
+<%- include('parts/footer.ejs') %>
