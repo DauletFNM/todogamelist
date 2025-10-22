@@ -14,20 +14,19 @@ const app = express();
 const port = process.env.PORT || 3000;
 const saltRounds = 10;
 
-// -------- Подключение к Render PostgreSQL --------
+// ---------------- PostgreSQL (Render) ----------------
 const db = new PG.Client({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
 db.connect();
 
-// -------- Настройки Express --------
+// ---------------- Express ----------------
 app.set("view engine", "ejs");
 app.set("views", "./views");
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
-
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
@@ -36,11 +35,10 @@ app.use(
     cookie: { maxAge: 1000 * 60 * 60 * 24 },
   })
 );
-
 app.use(passport.initialize());
 app.use(passport.session());
 
-// -------------------- Google OAuth --------------------
+// ---------------- Google OAuth ----------------
 app.get(
   "/auth/google",
   passport.authenticate("google", { scope: ["profile", "email"] })
@@ -54,7 +52,7 @@ app.get(
   })
 );
 
-// -------------------- Маршруты --------------------
+// ---------------- Routes ----------------
 app.get("/", (req, res) => {
   if (req.isAuthenticated()) res.redirect("/gamenotes");
   else res.redirect("/login");
@@ -70,7 +68,7 @@ app.get("/logout", (req, res) => {
   });
 });
 
-// -------------------- Страница игр --------------------
+// ---------------- Главная (все игры) ----------------
 app.get("/gamenotes", async (req, res) => {
   if (!req.isAuthenticated()) return res.redirect("/login");
   try {
@@ -86,14 +84,29 @@ app.get("/gamenotes", async (req, res) => {
   }
 });
 
-// -------------------- Добавление игры --------------------
+// ---------------- Пройденные игры ----------------
+app.get("/passedgames", async (req, res) => {
+  if (!req.isAuthenticated()) return res.redirect("/login");
+  try {
+    const userId = req.user.id;
+    const result = await db.query(
+      "SELECT * FROM games WHERE user_id = $1 AND status = 'completed' ORDER BY created_at DESC",
+      [userId]
+    );
+    res.render("passedgames.ejs", { games: result.rows });
+  } catch (error) {
+    console.error(error);
+    res.render("passedgames.ejs", { games: [] });
+  }
+});
+
+// ---------------- Добавление игры ----------------
 app.post("/add-game", async (req, res) => {
   if (!req.isAuthenticated()) return res.redirect("/login");
 
   const userId = req.user.id;
   const { gameName, gameStatus, gameRating, gameComment } = req.body;
 
-  // Очистка и преобразование данных
   const rating = gameRating && gameRating.trim() !== "" ? parseInt(gameRating) : null;
   const comment = gameComment && gameComment.trim() !== "" ? gameComment.trim() : null;
   const status = gameStatus ? gameStatus.trim().toLowerCase() : null;
@@ -110,7 +123,7 @@ app.post("/add-game", async (req, res) => {
   }
 });
 
-// -------------------- Удаление игры --------------------
+// ---------------- Удаление ----------------
 app.post("/delete-game", async (req, res) => {
   if (!req.isAuthenticated()) return res.redirect("/login");
   const userId = req.user.id;
@@ -124,7 +137,7 @@ app.post("/delete-game", async (req, res) => {
   }
 });
 
-// -------------------- Регистрация --------------------
+// ---------------- Регистрация ----------------
 app.post("/register", async (req, res) => {
   const username = req.body.username;
   const password = req.body.password;
@@ -149,7 +162,7 @@ app.post("/register", async (req, res) => {
   }
 });
 
-// -------------------- Логин --------------------
+// ---------------- Логин ----------------
 app.post(
   "/login",
   passport.authenticate("local", {
@@ -158,7 +171,7 @@ app.post(
   })
 );
 
-// -------------------- Passport Local --------------------
+// ---------------- Passport Local ----------------
 passport.use(
   new Strategy(async function verify(username, password, cb) {
     try {
@@ -178,7 +191,7 @@ passport.use(
   })
 );
 
-// -------------------- Passport Google --------------------
+// ---------------- Passport Google ----------------
 passport.use(
   "google",
   new GoogleStrategy(
@@ -205,9 +218,7 @@ passport.use(
   )
 );
 
-// -------------------- Passport сериализация --------------------
 passport.serializeUser((user, cb) => cb(null, user.id));
-
 passport.deserializeUser(async (id, cb) => {
   try {
     const result = await db.query('SELECT * FROM "users" WHERE "id" = $1', [id]);
@@ -217,5 +228,5 @@ passport.deserializeUser(async (id, cb) => {
   }
 });
 
-// -------------------- Сервер --------------------
+// ---------------- Server ----------------
 app.listen(port, () => console.log(`✅ Server running on port ${port}`));
