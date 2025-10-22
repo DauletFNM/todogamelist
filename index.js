@@ -51,7 +51,11 @@ app.get('/auth/google/gamenotes', passport.authenticate('google', {
 
 
 app.get("/", (req, res) => {
-  res.redirect("/login");
+  if (req.isAuthenticated()) {
+    res.redirect("/gamenotes"); 
+  } else {
+    res.redirect("/login");
+  }
 });
 
 app.get("/login", (req, res) => {
@@ -233,5 +237,6 @@ passport.deserializeUser(async (id, cb) => {
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
+
 
 
