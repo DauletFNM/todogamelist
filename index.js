@@ -90,7 +90,7 @@ app.post("/add-game", async (req, res) => {
 
   // проверим что реально приходит
   console.log("📥 req.body:", req.body);
-
+  
   const { gameName, gameStatus, gameRating, gameComment } = req.body;
   const userId = req.user.id;
 
@@ -224,3 +224,4 @@ passport.deserializeUser(async (id, cb) => {
 });
 
 app.listen(port, () => console.log(`✅ Server running on port ${port}`));
+
