@@ -14,19 +14,19 @@ const app = express();
 const port = process.env.PORT || 3000;
 const saltRounds = 10;
 
-// ---------------- PostgreSQL (Render) ----------------
+// --- Подключение к PostgreSQL (Render совместимо) ---
 const db = new PG.Client({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
 db.connect();
 
-// ---------------- Express ----------------
 app.set("view engine", "ejs");
 app.set("views", "./views");
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
@@ -35,10 +35,11 @@ app.use(
     cookie: { maxAge: 1000 * 60 * 60 * 24 },
   })
 );
+
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ---------------- Google OAuth ----------------
+// -------------------- Google OAuth --------------------
 app.get(
   "/auth/google",
   passport.authenticate("google", { scope: ["profile", "email"] })
@@ -52,7 +53,7 @@ app.get(
   })
 );
 
-// ---------------- Routes ----------------
+// -------------------- Роуты --------------------
 app.get("/", (req, res) => {
   if (req.isAuthenticated()) res.redirect("/gamenotes");
   else res.redirect("/login");
@@ -68,101 +69,90 @@ app.get("/logout", (req, res) => {
   });
 });
 
-// ---------------- Главная (все игры) ----------------
+// -------------------- Gamenotes --------------------
 app.get("/gamenotes", async (req, res) => {
   if (!req.isAuthenticated()) return res.redirect("/login");
   try {
-    const userId = req.user.id;
     const result = await db.query(
       "SELECT * FROM games WHERE user_id = $1 ORDER BY created_at DESC",
-      [userId]
+      [req.user.id]
     );
     res.render("gamenotes.ejs", { games: result.rows });
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.render("gamenotes.ejs", { games: [] });
   }
 });
 
-// ---------------- Пройденные игры ----------------
-app.get("/passedgames", async (req, res) => {
-  if (!req.isAuthenticated()) return res.redirect("/login");
-  try {
-    const userId = req.user.id;
-    const result = await db.query(
-      "SELECT * FROM games WHERE user_id = $1 AND status = 'completed' ORDER BY created_at DESC",
-      [userId]
-    );
-    res.render("passedgames.ejs", { games: result.rows });
-  } catch (error) {
-    console.error(error);
-    res.render("passedgames.ejs", { games: [] });
-  }
-});
-
-// ---------------- Добавление игры ----------------
+// -------------------- Добавление игры --------------------
 app.post("/add-game", async (req, res) => {
   if (!req.isAuthenticated()) return res.redirect("/login");
 
-  const userId = req.user.id;
-  const { gameName, gameStatus, gameRating, gameComment } = req.body;
+  // проверим что реально приходит
+  console.log("📥 req.body:", req.body);
 
-  const rating = gameRating && gameRating.trim() !== "" ? parseInt(gameRating) : null;
-  const comment = gameComment && gameComment.trim() !== "" ? gameComment.trim() : null;
-  const status = gameStatus ? gameStatus.trim().toLowerCase() : null;
+  const { gameName, gameStatus, gameRating, gameComment } = req.body;
+  const userId = req.user.id;
+
+  const rating = gameRating ? parseInt(gameRating, 10) : null;
+  const comment = gameComment ? gameComment.trim() : null;
 
   try {
     await db.query(
-      "INSERT INTO games (user_id, game_name, status, rating, comment) VALUES ($1, $2, $3, $4, $5)",
-      [userId, gameName, status, rating, comment]
+      `INSERT INTO games (user_id, game_name, status, rating, comment)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [userId, gameName, gameStatus, rating, comment]
     );
     res.redirect("/gamenotes");
-  } catch (error) {
-    console.error("Ошибка при добавлении игры:", error);
+  } catch (err) {
+    console.error("❌ Ошибка вставки:", err);
     res.redirect("/gamenotes");
   }
 });
 
-// ---------------- Удаление ----------------
+// -------------------- Удаление --------------------
 app.post("/delete-game", async (req, res) => {
   if (!req.isAuthenticated()) return res.redirect("/login");
-  const userId = req.user.id;
-  const gameId = req.body.gameId;
   try {
-    await db.query("DELETE FROM games WHERE id = $1 AND user_id = $2", [gameId, userId]);
+    await db.query("DELETE FROM games WHERE id = $1 AND user_id = $2", [
+      req.body.gameId,
+      req.user.id,
+    ]);
     res.redirect("/gamenotes");
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.redirect("/gamenotes");
   }
 });
 
-// ---------------- Регистрация ----------------
+// -------------------- Регистрация --------------------
 app.post("/register", async (req, res) => {
   const username = req.body.username;
   const password = req.body.password;
 
   try {
-    const check = await db.query('SELECT * FROM "users" WHERE "email" = $1', [username]);
+    const check = await db.query('SELECT * FROM "users" WHERE "email" = $1', [
+      username,
+    ]);
     if (check.rows.length > 0) return res.send("Email already exists");
 
-    bcrypt.hash(password, saltRounds, async (err, hashedString) => {
-      if (err) console.log(err);
+    bcrypt.hash(password, saltRounds, async (err, hashed) => {
+      if (err) return console.log(err);
       const result = await db.query(
         'INSERT INTO "users"(email, password) VALUES ($1, $2) RETURNING *',
-        [username, hashedString]
+        [username, hashed]
       );
       req.login(result.rows[0], (err) => {
         if (err) console.log(err);
         res.redirect("/gamenotes");
       });
     });
-  } catch (error) {
-    console.log(error);
+  } catch (err) {
+    console.log(err);
   }
 });
 
-// ---------------- Логин ----------------
+// -------------------- Логин --------------------
 app.post(
   "/login",
   passport.authenticate("local", {
@@ -171,11 +161,13 @@ app.post(
   })
 );
 
-// ---------------- Passport Local ----------------
+// -------------------- Passport Local --------------------
 passport.use(
   new Strategy(async function verify(username, password, cb) {
     try {
-      const result = await db.query('SELECT * FROM "users" WHERE "email" = $1', [username]);
+      const result = await db.query('SELECT * FROM "users" WHERE "email" = $1', [
+        username,
+      ]);
       if (result.rows.length === 0)
         return cb(null, false, { message: "Incorrect username or password." });
 
@@ -183,7 +175,7 @@ passport.use(
       bcrypt.compare(password, user.password, (err, isValid) => {
         if (err) return cb(err);
         if (isValid) cb(null, user);
-        else cb(null, false, { message: "Incorrect username or password." });
+        else cb(null, false);
       });
     } catch (err) {
       cb(err);
@@ -191,7 +183,7 @@ passport.use(
   })
 );
 
-// ---------------- Passport Google ----------------
+// -------------------- Passport Google --------------------
 passport.use(
   "google",
   new GoogleStrategy(
@@ -203,14 +195,17 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, cb) => {
       try {
-        const result = await db.query('SELECT * FROM "users" WHERE email = $1', [profile.email]);
+        const result = await db.query('SELECT * FROM "users" WHERE email = $1', [
+          profile.email,
+        ]);
         if (result.rows.length === 0) {
           const newUser = await db.query(
             'INSERT INTO "users"(email, password) VALUES ($1, $2) RETURNING *',
             [profile.email, "google"]
           );
           return cb(null, newUser.rows[0]);
-        } else return cb(null, result.rows[0]);
+        }
+        return cb(null, result.rows[0]);
       } catch (error) {
         cb(error);
       }
@@ -228,5 +223,4 @@ passport.deserializeUser(async (id, cb) => {
   }
 });
 
-// ---------------- Server ----------------
 app.listen(port, () => console.log(`✅ Server running on port ${port}`));
