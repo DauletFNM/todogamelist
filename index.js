@@ -133,29 +133,44 @@ app.post("/delete-game", async (req, res) => {
 
 // -------------------- Регистрация --------------------
 app.post("/register", async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, confirmPassword } = req.body;
+
+  // 1️⃣ Проверяем, совпадают ли пароли
+  if (password !== confirmPassword) {
+    return res.send("❌ Пароли не совпадают");
+  }
 
   try {
-    const check = await db.query('SELECT * FROM "users" WHERE "email" = $1', [
-      username,
-    ]);
-    if (check.rows.length > 0) return res.send("Email уже зарегистрирован");
+    // 2️⃣ Проверяем, есть ли пользователь с таким email
+    const checkUser = await db.query('SELECT * FROM "users" WHERE email = $1', [username]);
+    if (checkUser.rows.length > 0) {
+      return res.send("❌ Такой пользователь уже существует");
+    }
 
+    // 3️⃣ Хешируем пароль
     const hashed = await bcrypt.hash(password, saltRounds);
+
+    // 4️⃣ Создаём нового пользователя
     const result = await db.query(
       'INSERT INTO "users"(email, password) VALUES ($1, $2) RETURNING *',
       [username, hashed]
     );
+    const user = result.rows[0];
 
-    req.login(result.rows[0], (err) => {
-      if (err) console.log(err);
+    // 5️⃣ Логиним пользователя и редиректим
+    req.login(user, (err) => {
+      if (err) {
+        console.log("Ошибка логина:", err);
+        return res.redirect("/login");
+      }
       res.redirect("/gamenotes");
     });
-  } catch (error) {
-    console.log("❌ Ошибка при регистрации:", error);
+  } catch (err) {
+    console.error("Ошибка регистрации:", err);
     res.redirect("/register");
   }
 });
+
 
 // -------------------- Логин --------------------
 app.post(
@@ -252,3 +267,4 @@ app.use((err, req, res, next) => {
 
 // -------------------- Запуск --------------------
 app.listen(port, () => console.log(`✅ Server running on port ${port}`));
+
