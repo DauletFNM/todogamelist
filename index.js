@@ -64,7 +64,8 @@ app.get("/", (req, res) => {
 });
 
 app.get("/login", (req, res) => res.render("login.ejs"));
-app.get("/register", (req, res) => res.render("register.ejs"));
+app.get("/register", (req, res) => res.render("register.ejs", { error: null }));
+
 
 app.get("/logout", (req, res) => {
   req.logout((err) => {
@@ -267,4 +268,5 @@ app.use((err, req, res, next) => {
 
 // -------------------- Запуск --------------------
 app.listen(port, () => console.log(`✅ Server running on port ${port}`));
+
 
