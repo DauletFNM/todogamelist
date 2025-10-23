@@ -57,7 +57,9 @@
               </div>
               
             </form>
-            
+            <% if (typeof error !== "undefined") { %>
+                <p style="color: red; font-weight: bold; margin-top: 15px;"><%= error %></p>
+            <% } %>
             <div class="mt-4 text-center">
               <small>Уже есть аккаунт? <a href="/login" class="text-decoration-none text-white">Войти</a></small>
             </div>
@@ -67,4 +69,5 @@
       </div>
     </div>
   </div>
+
   <%- include('parts/footer.ejs') %>
