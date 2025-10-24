@@ -8,7 +8,7 @@ import { Strategy } from "passport-local";
 import dotenv from "dotenv";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 dotenv.config({ path: ".env" });
 
@@ -23,6 +23,9 @@ const db = new PG.Client({
 });
 db.connect();
 
+// -------- Инициализация Resend --------
+const resend = new Resend(process.env.RESEND_API_KEY);
+
 // -------- Настройки Express --------
 app.set("view engine", "ejs");
 app.set("views", "./views");
@@ -32,7 +35,7 @@ app.use(express.static("public"));
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET,
+    secret: process.env.SESSION_SECRET || "secret",
     resave: false,
     saveUninitialized: true,
     cookie: { maxAge: 1000 * 60 * 60 * 24 }, // 1 день
@@ -59,7 +62,7 @@ app.get(
   }
 );
 
-// -------------------- Роуты --------------------
+// -------------------- Основные страницы --------------------
 app.get("/", (req, res) => {
   if (req.isAuthenticated()) res.redirect("/gamenotes");
   else res.redirect("/login");
@@ -68,7 +71,6 @@ app.get("/", (req, res) => {
 app.get("/login", (req, res) => res.render("login.ejs"));
 app.get("/register", (req, res) => res.render("register.ejs", { error: null }));
 app.get("/forgot-password", (req, res) => res.render("forgotpassword.ejs"));
-
 app.get("/logout", (req, res) => {
   req.logout((err) => {
     if (err) console.log(err);
@@ -81,33 +83,35 @@ app.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
 
   try {
-    const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    // 1️⃣ Проверяем, есть ли пользователь
+    const result = await db.query("SELECT * FROM users WHERE email = $1", [email]);
     if (result.rows.length === 0) {
-      return res.status(404).send("Email not found");
+      return res.status(404).send("Email не найден");
     }
 
+    // 2️⃣ Генерируем токен и сохраняем
     const token = crypto.randomBytes(20).toString("hex");
     await db.query("UPDATE users SET reset_token = $1 WHERE email = $2", [token, email]);
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.GMAIL_USER,     
-        pass: process.env.GMAIL_PASS,      
-      },
-    });
-
-    const mailOptions = {
-      from: process.env.GMAIL_USER,
+    // 3️⃣ Отправляем письмо через Resend
+    await resend.emails.send({
+      from: "onboarding@resend.dev", // можно заменить после верификации домена
       to: email,
       subject: "Восстановление пароля",
-      text: `Воидите по этой ссылке чтобы восстановить пароль: https://todogamelist.onrender.com/reset-password/${token}`,
-    };
+      html: `
+        <p>Здравствуйте!</p>
+        <p>Чтобы восстановить пароль, нажмите на ссылку ниже:</p>
+        <p><a href="https://todogamelist.onrender.com/reset-password/${token}">
+          Восстановить пароль
+        </a></p>
+        <p>Если вы не запрашивали сброс, просто проигнорируйте это письмо.</p>
+      `,
+    });
 
-    await transporter.sendMail(mailOptions);
-    res.send("Проверьте вашу почту для восстановления пароля");
+    console.log(`📩 Письмо отправлено на ${email}`);
+    res.send("✅ Проверьте вашу почту для восстановления пароля");
   } catch (error) {
-    console.error(error);
+    console.error("❌ Ошибка при отправке письма:", error);
     res.status(500).send("Ошибка при отправке письма");
   }
 });
@@ -117,7 +121,7 @@ app.get("/reset-password/:token", async (req, res) => {
   const result = await db.query("SELECT * FROM users WHERE reset_token = $1", [token]);
 
   if (result.rows.length === 0) {
-    return res.status(404).send("Invalid or expired token");
+    return res.status(404).send("Неверный или устаревший токен");
   }
 
   res.render("resetpassword.ejs", { token });
@@ -128,16 +132,16 @@ app.post("/reset-password", async (req, res) => {
 
   const result = await db.query("SELECT * FROM users WHERE reset_token = $1", [token]);
   if (result.rows.length === 0) {
-    return res.status(404).send("Invalid or expired token");
+    return res.status(404).send("Неверный или устаревший токен");
   }
 
   const hashedPassword = await bcrypt.hash(password, saltRounds);
   await db.query("UPDATE users SET password = $1, reset_token = NULL WHERE reset_token = $2", [hashedPassword, token]);
 
-  res.send("Пароль успешно обновлён");
+  res.send("✅ Пароль успешно обновлён. Теперь вы можете войти.");
 });
 
-// -------------------- Главная (все игры) --------------------
+// -------------------- Страница с играми --------------------
 app.get("/gamenotes", async (req, res) => {
   if (!req.isAuthenticated()) return res.redirect("/login");
 
@@ -157,15 +161,10 @@ app.get("/gamenotes", async (req, res) => {
 app.post("/add-game", async (req, res) => {
   if (!req.isAuthenticated()) return res.redirect("/login");
 
-  console.log("📩 req.body:", req.body);
-
   const { gameName, gameStatus, gameRating, gameComment } = req.body;
   const userId = req.user.id;
-
-  const rating =
-    gameRating && gameRating.trim() !== "" ? parseInt(gameRating, 10) : null;
-  const comment =
-    gameComment && gameComment.trim() !== "" ? gameComment.trim() : null;
+  const rating = gameRating?.trim() ? parseInt(gameRating, 10) : null;
+  const comment = gameComment?.trim() || null;
 
   try {
     await db.query(
@@ -199,34 +198,25 @@ app.post("/delete-game", async (req, res) => {
 app.post("/register", async (req, res) => {
   const { username, password, confirmPassword } = req.body;
 
-  // 1️⃣ Проверяем, совпадают ли пароли
   if (password !== confirmPassword) {
     return res.send("❌ Пароли не совпадают");
   }
 
   try {
-    // 2️⃣ Проверяем, есть ли пользователь с таким email
     const checkUser = await db.query('SELECT * FROM "users" WHERE email = $1', [username]);
     if (checkUser.rows.length > 0) {
       return res.send("❌ Такой пользователь уже существует");
     }
 
-    // 3️⃣ Хешируем пароль
     const hashed = await bcrypt.hash(password, saltRounds);
-
-    // 4️⃣ Создаём нового пользователя
     const result = await db.query(
       'INSERT INTO "users"(email, password) VALUES ($1, $2) RETURNING *',
       [username, hashed]
     );
     const user = result.rows[0];
 
-    // 5️⃣ Логиним пользователя и редиректим
     req.login(user, (err) => {
-      if (err) {
-        console.log("Ошибка логина:", err);
-        return res.redirect("/login");
-      }
+      if (err) return res.redirect("/login");
       res.redirect("/gamenotes");
     });
   } catch (err) {
@@ -234,7 +224,6 @@ app.post("/register", async (req, res) => {
     res.redirect("/register");
   }
 });
-
 
 // -------------------- Логин --------------------
 app.post(
@@ -247,19 +236,16 @@ app.post(
 
 // -------------------- Passport Local --------------------
 passport.use(
-  new Strategy(async function verify(username, password, cb) {
+  new Strategy(async (username, password, cb) => {
     try {
-      const result = await db.query('SELECT * FROM "users" WHERE "email" = $1', [
-        username,
-      ]);
+      const result = await db.query('SELECT * FROM "users" WHERE "email" = $1', [username]);
       if (result.rows.length === 0)
         return cb(null, false, { message: "Неверный логин или пароль" });
 
       const user = result.rows[0];
       const isValid = await bcrypt.compare(password, user.password);
 
-      if (isValid) return cb(null, user);
-      else return cb(null, false, { message: "Неверный логин или пароль" });
+      return isValid ? cb(null, user) : cb(null, false, { message: "Неверный логин или пароль" });
     } catch (err) {
       cb(err);
     }
@@ -277,22 +263,13 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, cb) => {
       try {
-        // ✅ Google иногда возвращает email в массиве
-        const email = profile.emails?.[0]?.value || profile.email;
+        const email = profile.emails?.[0]?.value;
+        if (!email) return cb(new Error("Google не вернул email"));
 
-        if (!email) {
-          console.error("❌ Google не вернул email:", profile);
-          return cb(new Error("Google не вернул email"));
-        }
-
-        const result = await db.query('SELECT * FROM "users" WHERE email = $1', [
-          email,
-        ]);
-
+        const result = await db.query('SELECT * FROM "users" WHERE email = $1', [email]);
         let user;
 
         if (result.rows.length === 0) {
-          console.log(`🟢 Новый пользователь Google: ${email}`);
           const insert = await db.query(
             'INSERT INTO "users"(email, password) VALUES ($1, $2) RETURNING *',
             [email, "google"]
@@ -300,12 +277,10 @@ passport.use(
           user = insert.rows[0];
         } else {
           user = result.rows[0];
-          console.log(`✅ Google вход успешен для: ${user.email}`);
         }
 
         return cb(null, user);
       } catch (err) {
-        console.error("❌ Ошибка в Google стратегии:", err);
         cb(err);
       }
     }
@@ -331,7 +306,3 @@ app.use((err, req, res, next) => {
 
 // -------------------- Запуск --------------------
 app.listen(port, () => console.log(`✅ Server running on port ${port}`));
-
-
-
-
