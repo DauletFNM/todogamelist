@@ -65,13 +65,74 @@ app.get("/", (req, res) => {
 
 app.get("/login", (req, res) => res.render("login.ejs"));
 app.get("/register", (req, res) => res.render("register.ejs", { error: null }));
-
+app.get("/forgot-password", (req, res) => res.render("forgotpassword.ejs"));
 
 app.get("/logout", (req, res) => {
   req.logout((err) => {
     if (err) console.log(err);
     res.redirect("/login");
   });
+});
+
+// ==================== FORGOT / RESET PASSWORD ====================
+app.post("/forgot-password", async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (result.rows.length === 0) {
+      return res.status(404).send("Email not found");
+    }
+
+    const token = crypto.randomBytes(20).toString("hex");
+    await db.query("UPDATE users SET reset_token = $1 WHERE email = $2", [token, email]);
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.GMAIL_USER,     
+        pass: process.env.GMAIL_PASS,      
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.GMAIL_USER,
+      to: email,
+      subject: "Восстановление пароля",
+      text: `Воидите по этой ссылке чтобы восстановить пароль: https://todogamelist.onrender.com/reset-password/${token}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.send("Проверьте вашу почту для восстановления пароля");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Ошибка при отправке письма");
+  }
+});
+
+app.get("/reset-password/:token", async (req, res) => {
+  const { token } = req.params;
+  const result = await db.query("SELECT * FROM users WHERE reset_token = $1", [token]);
+
+  if (result.rows.length === 0) {
+    return res.status(404).send("Invalid or expired token");
+  }
+
+  res.render("resetpassword.ejs", { token });
+});
+
+app.post("/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+
+  const result = await db.query("SELECT * FROM users WHERE reset_token = $1", [token]);
+  if (result.rows.length === 0) {
+    return res.status(404).send("Invalid or expired token");
+  }
+
+  const hashedPassword = await bcrypt.hash(password, saltRounds);
+  await db.query("UPDATE users SET password = $1, reset_token = NULL WHERE reset_token = $2", [hashedPassword, token]);
+
+  res.send("Пароль успешно обновлён");
 });
 
 // -------------------- Главная (все игры) --------------------
@@ -268,5 +329,6 @@ app.use((err, req, res, next) => {
 
 // -------------------- Запуск --------------------
 app.listen(port, () => console.log(`✅ Server running on port ${port}`));
+
 
 
