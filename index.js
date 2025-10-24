@@ -7,6 +7,8 @@ import passport from "passport";
 import { Strategy } from "passport-local";
 import dotenv from "dotenv";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import crypto from "crypto";
+import nodemailer from "nodemailer";
 
 dotenv.config({ path: ".env" });
 
@@ -329,6 +331,7 @@ app.use((err, req, res, next) => {
 
 // -------------------- Запуск --------------------
 app.listen(port, () => console.log(`✅ Server running on port ${port}`));
+
 
 
 
